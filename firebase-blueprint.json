@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "organization": {
+      "title": "Organization",
+      "description": "An organization that manages users, trips, and tickets.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the organization." },
+        "adminUid": { "type": "string", "description": "The UID of the organization administrator." }
+      },
+      "required": ["name", "adminUid"]
+    },
+    "user": {
+      "title": "User",
+      "description": "A user subscribed to an organization.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "name": { "type": "string", "description": "The user's full name." },
+        "organizationId": { "type": "string", "description": "The ID of the organization the user belongs to." },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "The user's role within the organization." }
+      },
+      "required": ["email", "name", "organizationId", "role"]
+    },
+    "trip": {
+      "title": "Trip",
+      "description": "A mileage record created by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who created the trip." },
+        "organizationId": { "type": "string", "description": "The ID of the organization." },
+        "date": { "type": "string", "format": "date-time", "description": "The date of the trip." },
+        "km": { "type": "number", "description": "The number of kilometers traveled." },
+        "photoUrl": { "type": "string", "description": "A URL to a photo of the odometer or receipt." },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "The current status of the trip." },
+        "description": { "type": "string", "description": "Optional description of the trip." }
+      },
+      "required": ["userId", "organizationId", "date", "km", "status"]
+    },
+    "ticket": {
+      "title": "Ticket",
+      "description": "An expense ticket created by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who created the ticket." },
+        "organizationId": { "type": "string", "description": "The ID of the organization." },
+        "date": { "type": "string", "format": "date-time", "description": "The date of the ticket." },
+        "amount": { "type": "number", "description": "The expense amount." },
+        "photoUrl": { "type": "string", "description": "A URL to a photo of the ticket." },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "The current status of the ticket." },
+        "description": { "type": "string", "description": "Optional description of the ticket." }
+      },
+      "required": ["userId", "organizationId", "date", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": { "schema": "organization", "description": "Collection of organizations." },
+    "/users/{userId}": { "schema": "user", "description": "Collection of user profiles." },
+    "/trips/{tripId}": { "schema": "trip", "description": "Collection of mileage trips." },
+    "/tickets/{ticketId}": { "schema": "ticket", "description": "Collection of expense tickets." }
+  }
+}

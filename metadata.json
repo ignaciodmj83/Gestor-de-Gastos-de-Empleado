@@ -1,0 +1,5 @@
+{
+  "name": "Kilometraje & Tickets Pro",
+  "description": "Sistema completo de gestión de kilometraje y tickets para organizaciones con roles de administrador y usuario.",
+  "requestFramePermissions": ["camera"]
+}
