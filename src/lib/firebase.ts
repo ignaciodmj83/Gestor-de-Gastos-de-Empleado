@@ -3,14 +3,15 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { GoogleGenAI } from "@google/genai";
 import firebaseConfig from '../../firebase-applet-config.json';
+import { toast } from 'sonner';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth();
 
 const geminiKey = process.env.GEMINI_API_KEY;
-if (!geminiKey || geminiKey === "MY_GEMINI_API_KEY") {
-  console.warn("GEMINI_API_KEY is missing or using placeholder value.");
+if (!geminiKey || geminiKey === "MY_GEMINI_API_KEY" || geminiKey === "") {
+  console.warn("GEMINI_API_KEY is missing or using placeholder value. AI features will not work.");
 }
 
 export const ai = new GoogleGenAI({ apiKey: geminiKey || "" });
@@ -24,44 +25,34 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
+/**
+ * FIXED: handleFirestoreError now shows a toast without always throwing.
+ * Pass `throwError = true` only when the caller needs to catch it.
+ */
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null,
+  throwError = false
+) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as any)?.code ?? '';
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
+  let userMessage = 'Error inesperado. Inténtalo de nuevo.';
+  if (code === 'permission-denied') {
+    userMessage = 'Permiso denegado. Contacta con el administrador.';
+  } else if (code === 'unavailable') {
+    userMessage = 'Sin conexión. Comprueba tu red.';
+  } else if (code === 'not-found') {
+    userMessage = 'Registro no encontrado.';
+  } else if (message) {
+    userMessage = message;
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+
+  console.error(`[Firestore ${operationType}] ${path}:`, error);
+  toast.error(userMessage);
+
+  if (throwError) {
+    throw error;
+  }
 }
