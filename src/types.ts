@@ -32,12 +32,41 @@ export interface UserProfile {
   role: Role;
 }
 
+export interface OrgSettings {
+  organizationId: string;
+  // Km cost
+  kmCost: number;               // €/km, e.g. 0.26
+  // Fiscal / company data
+  companyName?: string;
+  companyAddress?: string;
+  companyCIF?: string;
+  companyEmail?: string;
+  // Operational defaults
+  defaultSendEmail?: string;    // email where processed tickets are sent
+  maxAutoApproveAmount?: number; // tickets below this are auto-approved (default 50)
+  currency: string;             // default 'EUR'
+}
+
+export const DEFAULT_SETTINGS: OrgSettings = {
+  organizationId: '',
+  kmCost: 0.26,
+  companyName: '',
+  companyAddress: '',
+  companyCIF: '',
+  companyEmail: '',
+  defaultSendEmail: '',
+  maxAutoApproveAmount: 50,
+  currency: 'EUR',
+};
+
 export interface Trip {
   id: string;
   userId: string;
   organizationId: string;
   date: any;
   km: number;
+  kmCost?: number;       // snapshot of cost at submission time
+  totalAmount?: number;  // km * kmCost
   startKm?: number;
   endKm?: number;
   startPhotoUrl?: string;
@@ -54,9 +83,18 @@ export interface Ticket {
   organizationId: string;
   date: any;
   amount: number;
+  baseAmount?: number;   // amount before VAT
+  vatPercent?: number;   // e.g. 21
+  vatAmount?: number;    // calculated VAT
   category?: TicketCategory;
+  // Fiscal data extracted by AI
+  vendorName?: string;
+  vendorAddress?: string;
+  vendorCIF?: string;
+  concept?: string;
+  invoiceNumber?: string;
   photoUrl?: string;
   status: Status;
-  description?: string;
+  description?: string;  // kept for backwards compat
   userName?: string;
 }
