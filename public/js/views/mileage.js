@@ -18,31 +18,55 @@ const MileageView = {
 
   async loadList(container) {
     const list = container.querySelector('#reports-list');
+    const user = API.getUser();
     try {
       const rows = await API.get('/mileage');
       if (!rows.length) { list.innerHTML = UI.emptyState('Sin partes'); return; }
       list.innerHTML = `
-        <table>
-          <thead><tr>
-            <th>#</th><th>Título</th><th>Empleado</th><th>Periodo</th><th>Km</th><th>Importe</th><th>Estado</th>
-          </tr></thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr class="clickable" data-id="${r.id}">
-                <td>#${r.id}</td>
-                <td>${UI.escapeHtml(r.title)}</td>
-                <td>${UI.escapeHtml(r.employee_name)}</td>
-                <td>${UI.formatDate(r.period_start)} → ${UI.formatDate(r.period_end)}</td>
-                <td>${r.total_km.toFixed(1)} km</td>
-                <td>${UI.formatMoney(r.total_amount)}</td>
-                <td>${UI.statusChip(r.status)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Título</th><th>Empleado</th><th>Periodo</th><th>Km</th><th>Importe</th><th>Estado</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => {
+                const isOwner = r.employee_id === user.id;
+                const canSubmit = isOwner && r.status === 'draft';
+                const canDelete = isOwner && r.status === 'draft';
+                return `<tr>
+                  <td><a href="#/mileage/${r.id}">#${r.id}</a></td>
+                  <td>${UI.escapeHtml(r.title)}</td>
+                  <td>${UI.escapeHtml(r.employee_name)}</td>
+                  <td style="white-space:nowrap;">${UI.formatDate(r.period_start)} → ${UI.formatDate(r.period_end)}</td>
+                  <td>${r.total_km.toFixed(1)} km</td>
+                  <td>${UI.formatMoney(r.total_amount)}</td>
+                  <td>${UI.statusChip(r.status)}</td>
+                  <td style="white-space:nowrap;display:flex;gap:4px;padding:10px 16px;">
+                    <a href="#/mileage/${r.id}" class="btn btn-sm btn-secondary">Ver</a>
+                    ${canSubmit ? `<button class="btn btn-sm" data-submit="${r.id}">Enviar</button>` : ''}
+                    ${canDelete ? `<button class="btn btn-sm btn-danger" data-del="${r.id}">Eliminar</button>` : ''}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       `;
-      list.querySelectorAll('tr.clickable').forEach(row => {
-        row.addEventListener('click', () => location.hash = '#/mileage/' + row.dataset.id);
+      list.querySelectorAll('[data-submit]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('¿Enviar este parte para aprobación?')) return;
+          try { await API.post('/mileage/' + btn.dataset.submit + '/submit', {}); this.loadList(container); }
+          catch (err) { UI.alertError(err); }
+        });
+      });
+      list.querySelectorAll('[data-del]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('¿Eliminar este parte?')) return;
+          try { await API.del('/mileage/' + btn.dataset.del); this.loadList(container); }
+          catch (err) { UI.alertError(err); }
+        });
       });
     } catch (e) { list.innerHTML = `<div class="error-msg">${UI.escapeHtml(e.message)}</div>`; }
   },
@@ -122,19 +146,44 @@ const MileageView = {
               ` : UI.emptyState('Sin trayectos')}
 
               ${canEdit ? `
-                <details style="margin-top:14px;">
-                  <summary style="cursor:pointer;color:var(--accent);font-size:13px;">+ Añadir trayecto</summary>
+                <details style="margin-top:14px;" open>
+                  <summary style="cursor:pointer;color:var(--accent);font-size:13px;font-weight:600;">+ Añadir trayecto</summary>
                   <form id="trip-form" style="margin-top:14px;">
                     <div class="form-row">
                       <div class="field"><label>Fecha</label><input type="date" name="trip_date" required value="${new Date().toISOString().slice(0,10)}" /></div>
-                      <div class="field"><label>Km</label><input type="number" name="km" step="0.1" min="0" required /></div>
                     </div>
                     <div class="form-row">
-                      <div class="field"><label>Origen</label><input type="text" name="origin" required /></div>
-                      <div class="field"><label>Destino</label><input type="text" name="destination" required /></div>
+                      <div class="field"><label>Origen</label><input type="text" name="origin" required placeholder="Ciudad / dirección de salida" /></div>
+                      <div class="field"><label>Destino</label><input type="text" name="destination" required placeholder="Ciudad / dirección de llegada" /></div>
                     </div>
-                    <div class="field"><label>Notas</label><input type="text" name="notes" /></div>
-                    <button type="button" class="btn btn-sm" id="add-trip">Añadir</button>
+                    <div style="margin:12px 0 8px;padding:12px 14px;background:var(--accent-soft);border:1px solid rgba(124,92,255,0.25);border-radius:var(--radius-sm);">
+                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--accent-2);margin-bottom:10px;">📸 Odómetro (foto)</div>
+                      <div class="form-row">
+                        <div class="field">
+                          <label>Km inicial</label>
+                          <div style="display:flex;gap:6px;">
+                            <input type="number" name="km_start" step="0.1" min="0" placeholder="p. ej. 45200" style="flex:1;" />
+                            <button type="button" class="btn btn-sm btn-secondary" id="scan-km-start" title="Escanear odómetro inicial">📷</button>
+                          </div>
+                          <input type="file" id="odo-start-file" accept="image/*" capture="environment" style="display:none;" />
+                        </div>
+                        <div class="field">
+                          <label>Km final</label>
+                          <div style="display:flex;gap:6px;">
+                            <input type="number" name="km_end" step="0.1" min="0" placeholder="p. ej. 45347" style="flex:1;" />
+                            <button type="button" class="btn btn-sm btn-secondary" id="scan-km-end" title="Escanear odómetro final">📷</button>
+                          </div>
+                          <input type="file" id="odo-end-file" accept="image/*" capture="environment" style="display:none;" />
+                        </div>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:var(--text-dim);">
+                        Km del trayecto:
+                        <strong id="km-calc" style="color:var(--text);font-size:14px;">—</strong>
+                        <span id="odo-ocr-status"></span>
+                      </div>
+                    </div>
+                    <div class="field"><label>Notas</label><input type="text" name="notes" placeholder="Motivo del viaje (opcional)" /></div>
+                    <button type="button" class="btn btn-sm" id="add-trip">Añadir trayecto</button>
                   </form>
                 </details>
               ` : ''}
@@ -189,25 +238,77 @@ const MileageView = {
       `;
 
       const tripForm = detail.querySelector('#trip-form');
-      if (tripForm && window.OCR) {
-        OCR.attachScanButton(tripForm, {
-          kind: 'mileage',
-          onResult: (parsed) => {
-            const set = (name, val) => { const el = tripForm.querySelector(`[name="${name}"]`); if (el && val !== '' && val != null) el.value = val; };
-            set('trip_date', parsed.trip_date);
-            set('origin', parsed.origin);
-            set('destination', parsed.destination);
-            set('km', parsed.km);
-            set('notes', parsed.notes);
-          },
-        });
+      if (tripForm) {
+        // Helper: extract odometer reading from OCR text (largest plausible integer)
+        const extractOdoReading = (text) => {
+          const nums = [...text.matchAll(/\b(\d{4,7})\b/g)].map(m => parseInt(m[1], 10));
+          if (!nums.length) return null;
+          return nums.sort((a, b) => b - a)[0]; // largest reading
+        };
+
+        const updateKmCalc = () => {
+          const start = parseFloat(tripForm.querySelector('[name="km_start"]').value);
+          const end = parseFloat(tripForm.querySelector('[name="km_end"]').value);
+          const calc = tripForm.querySelector('#km-calc');
+          if (!isNaN(start) && !isNaN(end) && end > start) {
+            calc.textContent = (Math.round((end - start) * 10) / 10) + ' km';
+            calc.style.color = 'var(--success)';
+          } else {
+            calc.textContent = '—';
+            calc.style.color = '';
+          }
+        };
+        tripForm.querySelector('[name="km_start"]').addEventListener('input', updateKmCalc);
+        tripForm.querySelector('[name="km_end"]').addEventListener('input', updateKmCalc);
+
+        const wireOdoScan = (btnId, fileId, fieldName) => {
+          const btn = tripForm.querySelector('#' + btnId);
+          const fileInput = tripForm.querySelector('#' + fileId);
+          const statusEl = tripForm.querySelector('#odo-ocr-status');
+          if (!btn || !fileInput) return;
+          btn.addEventListener('click', () => fileInput.click());
+          fileInput.addEventListener('change', async () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file || !window.OCR) return;
+            btn.textContent = '⏳';
+            if (statusEl) statusEl.innerHTML = `<span style="color:var(--accent-2);font-size:11px;">Procesando OCR...</span>`;
+            try {
+              const { text } = await OCR.scan(file);
+              const reading = extractOdoReading(text);
+              if (reading != null) {
+                tripForm.querySelector(`[name="${fieldName}"]`).value = reading;
+                updateKmCalc();
+                if (statusEl) statusEl.innerHTML = `<span style="color:var(--success);font-size:11px;">✓ ${reading.toLocaleString()} km</span>`;
+              } else {
+                if (statusEl) statusEl.innerHTML = `<span style="color:var(--warning);font-size:11px;">No se encontró número</span>`;
+              }
+            } catch (err) {
+              if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);font-size:11px;">OCR falló</span>`;
+            } finally {
+              btn.textContent = '📷';
+              fileInput.value = '';
+            }
+          });
+        };
+        wireOdoScan('scan-km-start', 'odo-start-file', 'km_start');
+        wireOdoScan('scan-km-end', 'odo-end-file', 'km_end');
       }
 
       detail.querySelector('#add-trip')?.addEventListener('click', async () => {
         const form = detail.querySelector('#trip-form');
         const fd = new FormData(form);
         const data = Object.fromEntries(fd);
-        data.km = parseFloat(data.km);
+        const kmStart = parseFloat(data.km_start);
+        const kmEnd = parseFloat(data.km_end);
+        if (!isNaN(kmStart) && !isNaN(kmEnd)) {
+          data.km_start = kmStart;
+          data.km_end = kmEnd;
+          delete data.km; // let backend calculate
+        } else {
+          delete data.km_start;
+          delete data.km_end;
+          data.km = parseFloat(data.km || 0);
+        }
         try { await API.post(`/mileage/${id}/trips`, data); this.renderDetail(container, id); }
         catch (e) { UI.alertError(e); }
       });

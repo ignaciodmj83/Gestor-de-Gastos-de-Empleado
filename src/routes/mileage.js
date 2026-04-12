@@ -5,8 +5,8 @@ const { authRequired, audit } = require('../auth');
 const router = express.Router();
 router.use(authRequired);
 
-function getCompanyRate() {
-  const c = db.prepare('SELECT mileage_rate FROM company LIMIT 1').get();
+function getCompanyRate(companyId) {
+  const c = db.prepare('SELECT mileage_rate FROM company WHERE id = ?').get(companyId);
   return c ? c.mileage_rate : 0.26;
 }
 
@@ -94,16 +94,24 @@ router.post('/:id/trips', (req, res) => {
     return res.status(404).json({ error: 'not found' });
   }
   if (report.status !== 'draft') return res.status(400).json({ error: 'report not editable' });
-  const { trip_date, origin, destination, km, notes } = req.body || {};
-  if (!trip_date || !origin || !destination || km == null) {
-    return res.status(400).json({ error: 'fields required' });
+  const { trip_date, origin, destination, km, km_start, km_end, notes } = req.body || {};
+  // km can be provided directly OR calculated from odometer readings
+  const finalKm = (km_start != null && km_end != null)
+    ? Math.round((Number(km_end) - Number(km_start)) * 10) / 10
+    : Number(km);
+  if (!trip_date || !origin || !destination || finalKm == null || isNaN(finalKm) || finalKm <= 0) {
+    return res.status(400).json({ error: 'trip_date, origin, destination y km (o km_start+km_end) requeridos' });
   }
-  const rate = getCompanyRate();
-  const amount = Math.round(km * rate * 100) / 100;
+  const emp = db.prepare('SELECT company_id FROM user WHERE id = ?').get(report.employee_id);
+  const rate = getCompanyRate(emp ? emp.company_id : null);
+  const amount = Math.round(finalKm * rate * 100) / 100;
   db.prepare(
-    `INSERT INTO mileage_trip (report_id, trip_date, origin, destination, km, rate, amount, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(req.params.id, trip_date, origin, destination, km, rate, amount, notes || null);
+    `INSERT INTO mileage_trip (report_id, trip_date, origin, destination, km, km_start, km_end, rate, amount, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(req.params.id, trip_date, origin, destination, finalKm,
+        km_start != null ? Number(km_start) : null,
+        km_end != null ? Number(km_end) : null,
+        rate, amount, notes || null);
   recalcTotals(req.params.id);
   res.status(201).json({ ok: true, amount });
 });
@@ -115,6 +123,16 @@ router.delete('/:id/trips/:tripId', (req, res) => {
   db.prepare('DELETE FROM mileage_trip WHERE id = ? AND report_id = ?')
     .run(req.params.tripId, req.params.id);
   recalcTotals(req.params.id);
+  res.json({ ok: true });
+});
+
+// delete a draft report (owner only)
+router.delete('/:id', (req, res) => {
+  const report = db.prepare('SELECT * FROM mileage_report WHERE id = ?').get(req.params.id);
+  if (!report || report.employee_id !== req.user.id) return res.status(404).json({ error: 'not found' });
+  if (report.status !== 'draft') return res.status(400).json({ error: 'solo se pueden eliminar borradores' });
+  db.prepare('DELETE FROM mileage_report WHERE id = ?').run(req.params.id);
+  audit(req.user.id, 'delete', 'mileage_report', req.params.id, null);
   res.json({ ok: true });
 });
 

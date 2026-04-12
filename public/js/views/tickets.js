@@ -19,31 +19,45 @@ const TicketsView = {
 
   async loadList(container) {
     const list = container.querySelector('#tickets-list');
+    const user = API.getUser();
     try {
       const rows = await API.get('/tickets');
       if (!rows.length) { list.innerHTML = UI.emptyState('No hay tickets'); return; }
       list.innerHTML = `
-        <table>
-          <thead><tr>
-            <th>#</th><th>Asunto</th><th>Solicitante</th><th>Categoría</th><th>Prioridad</th><th>Estado</th><th>Creado</th>
-          </tr></thead>
-          <tbody>
-            ${rows.map(t => `
-              <tr class="clickable" data-id="${t.id}">
-                <td>#${t.id}</td>
-                <td>${UI.escapeHtml(t.subject)}</td>
-                <td>${UI.escapeHtml(t.requester_name)}</td>
-                <td>${UI.escapeHtml(t.category)}</td>
-                <td>${UI.escapeHtml(t.priority)}</td>
-                <td>${UI.statusChip(t.status)}</td>
-                <td>${UI.formatDate(t.created_at)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Asunto</th><th>Solicitante</th><th>Categoría</th><th>Prioridad</th><th>Estado</th><th>Creado</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(t => {
+                const isOwner = t.requester_id === user.id;
+                const canDelete = (isOwner || user.role === 'admin') && t.status === 'submitted';
+                return `<tr>
+                  <td><a href="#/tickets/${t.id}">#${t.id}</a></td>
+                  <td>${UI.escapeHtml(t.subject)}</td>
+                  <td>${UI.escapeHtml(t.requester_name)}</td>
+                  <td>${UI.escapeHtml(t.category)}</td>
+                  <td>${UI.escapeHtml(t.priority)}</td>
+                  <td>${UI.statusChip(t.status)}</td>
+                  <td>${UI.formatDate(t.created_at)}</td>
+                  <td style="white-space:nowrap;">
+                    <a href="#/tickets/${t.id}" class="btn btn-sm btn-secondary">Ver</a>
+                    ${canDelete ? `<button class="btn btn-sm btn-danger" data-del="${t.id}" style="margin-left:4px;">Eliminar</button>` : ''}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       `;
-      list.querySelectorAll('tr.clickable').forEach(row => {
-        row.addEventListener('click', () => location.hash = '#/tickets/' + row.dataset.id);
+      list.querySelectorAll('[data-del]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('¿Eliminar este ticket?')) return;
+          try { await API.del('/tickets/' + btn.dataset.del); this.loadList(container); }
+          catch (err) { UI.alertError(err); }
+        });
       });
     } catch (e) { list.innerHTML = `<div class="error-msg">${UI.escapeHtml(e.message)}</div>`; }
   },

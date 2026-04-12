@@ -89,6 +89,21 @@ router.post('/:id/comments', (req, res) => {
   res.status(201).json({ ok: true });
 });
 
+// delete — requester (own, undecided) or admin
+router.delete('/:id', (req, res) => {
+  const ticket = db.prepare('SELECT * FROM ticket WHERE id = ?').get(req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'not found' });
+  const isOwner = ticket.requester_id === req.user.id;
+  const isAdmin = req.user.role === 'admin';
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'forbidden' });
+  if (isOwner && !isAdmin && ticket.status !== 'submitted') {
+    return res.status(400).json({ error: 'only pending tickets can be deleted by the requester' });
+  }
+  db.prepare('DELETE FROM ticket WHERE id = ?').run(req.params.id);
+  audit(req.user.id, 'delete', 'ticket', req.params.id, null);
+  res.json({ ok: true });
+});
+
 // approve / reject — admin or manager of requester
 router.post('/:id/decision', (req, res) => {
   const { action, comment } = req.body || {};

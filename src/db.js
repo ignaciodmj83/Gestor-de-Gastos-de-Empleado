@@ -209,6 +209,14 @@ function init() {
   if (!companyCols.some(c => c.name === 'code')) {
     db.exec("ALTER TABLE company ADD COLUMN code TEXT");
   }
+
+  const tripCols = db.prepare("PRAGMA table_info('mileage_trip')").all();
+  if (!tripCols.some(c => c.name === 'km_start')) {
+    db.exec("ALTER TABLE mileage_trip ADD COLUMN km_start REAL");
+  }
+  if (!tripCols.some(c => c.name === 'km_end')) {
+    db.exec("ALTER TABLE mileage_trip ADD COLUMN km_end REAL");
+  }
 }
 
 // Generates a short, human-friendly org code (e.g. "ACM-3F8K")
