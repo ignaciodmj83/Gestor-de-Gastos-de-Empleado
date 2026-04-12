@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s -X POST http://localhost:3000/api/mileage -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywiY29tcGFueV9pZCI6MSwiZW1haWwiOiJlbXBsZWFkb0BkZW1vLmxvY2FsIiwicm9sZSI6ImVtcGxveWVlIiwiaWF0IjoxNzc1OTgzODMwLCJleHAiOjE3NzYwMjcwMzB9.2ZwlKeka8Cb937_g0cbx3OGF8q3Gpj9o3hMkbyMjVSM' -d '{\"title\":\"OCR Test\",\"period_start\":\"2026-04-01\",\"period_end\":\"2026-04-30\"}')"
+    ]
+  }
+}
