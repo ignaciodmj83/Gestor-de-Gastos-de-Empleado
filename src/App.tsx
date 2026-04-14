@@ -9,9 +9,11 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { Settings } from './components/Settings';
 import { Toaster } from '@/components/ui/sonner';
 
+type AppPage = 'dashboard' | 'settings';
+
 function AppContent() {
   const { user, profile, loading } = useAuth();
-  const [page, setPage] = useState<'dashboard' | 'settings'>('dashboard');
+  const [page, setPage] = useState<AppPage>('dashboard');
 
   if (loading) {
     return (
@@ -25,7 +27,7 @@ function AppContent() {
   if (!profile) return <OrganizationSetup />;
 
   return (
-    <Layout currentPage={page} onNavigate={(p) => setPage(p as any)}>
+    <Layout currentPage={page} onNavigate={(p) => setPage(p)}>
       {profile.role === 'admin'
         ? page === 'settings'
           ? <Settings />

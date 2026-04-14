@@ -150,10 +150,8 @@ export function TripForm() {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-      <DialogTrigger>
-        <Button className="gap-2 bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all">
-          <PlusCircle className="w-4 h-4" /> Nuevo Viaje
-        </Button>
+      <DialogTrigger render={<Button className="gap-2 bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all" />}>
+        <PlusCircle className="w-4 h-4" /> Nuevo Viaje
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

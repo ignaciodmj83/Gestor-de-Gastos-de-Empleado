@@ -3,10 +3,12 @@ import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { LogOut, Building2, Settings as SettingsIcon, LayoutDashboard } from 'lucide-react';
 
+type AppPage = 'dashboard' | 'settings';
+
 interface LayoutProps {
   children: React.ReactNode;
-  currentPage?: string;
-  onNavigate?: (page: string) => void;
+  currentPage?: AppPage;
+  onNavigate?: (page: AppPage) => void;
 }
 
 export function Layout({ children, currentPage = 'dashboard', onNavigate }: LayoutProps) {
