@@ -34,7 +34,7 @@ export function Settings() {
       .finally(() => setLoading(false));
   }, [profile?.organizationId]);
 
-  const set = (key: keyof OrgSettings, value: any) => {
+  const set = (key: keyof OrgSettings, value: string | number) => {
     setSaved(false);
     setSettings(prev => ({ ...prev, [key]: value }));
   };

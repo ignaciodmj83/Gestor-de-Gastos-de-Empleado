@@ -52,10 +52,8 @@ function TicketDetailModal({ ticket }: { ticket: Ticket }) {
   const cat = TICKET_CATEGORIES.find(c => c.value === ticket.category);
   return (
     <Dialog>
-      <DialogTrigger>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-primary" title="Ver detalle">
-          <Eye className="h-4 w-4" />
-        </Button>
+      <DialogTrigger render={<Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-primary" title="Ver detalle" />}>
+        <Eye className="h-4 w-4" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
@@ -125,10 +123,8 @@ function Field({ label, value, mono }: { label: string; value?: string | null; m
 function TripDetailModal({ trip }: { trip: Trip }) {
   return (
     <Dialog>
-      <DialogTrigger>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-primary" title="Ver detalle">
-          <Eye className="h-4 w-4" />
-        </Button>
+      <DialogTrigger render={<Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-primary" title="Ver detalle" />}>
+        <Eye className="h-4 w-4" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
@@ -561,10 +557,8 @@ export function AdminDashboard() {
                         <div className="flex gap-1">
                           {[trip.startPhotoUrl, trip.endPhotoUrl, trip.photoUrl].filter(Boolean).map((url, i) => (
                             <Dialog key={i}>
-                              <DialogTrigger>
-                                <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity">
-                                  <img src={url!} alt="Odómetro" className="w-full h-full object-cover" />
-                                </div>
+                              <DialogTrigger className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 p-0 transition-opacity">
+                                <img src={url!} alt="Odómetro" className="w-full h-full object-cover" />
                               </DialogTrigger>
                               <DialogContent className="sm:max-w-[600px]">
                                 <img src={url!} alt="Odómetro" className="w-full h-auto rounded-xl" />

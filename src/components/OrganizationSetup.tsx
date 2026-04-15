@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { doc, setDoc, collection, addDoc, getDoc } from 'firebase/firestore';
-import { db, OperationType } from '@/src/lib/firebase';
+import { db } from '@/src/lib/firebase';
 import { useAuth } from './AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

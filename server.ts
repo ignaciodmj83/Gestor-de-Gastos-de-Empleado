@@ -6,9 +6,11 @@
  * IMPORTANTE: GEMINI_API_KEY se lee de process.env del servidor,
  * nunca llega al navegador → seguro.
  */
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import { GoogleGenAI, createUserContent, createPartFromBase64, Type } from '@google/genai';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -150,7 +152,6 @@ app.get('/api/health', (_req, res) => {
 
 // ── Servir build estático de Vite (solo en producción) ────────────────────────
 const distPath = path.join(__dirname, 'dist');
-import { existsSync } from 'fs';
 if (existsSync(distPath)) {
   app.use(express.static(distPath));
   // SPA fallback

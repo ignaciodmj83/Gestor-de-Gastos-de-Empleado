@@ -22,10 +22,8 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
   const cat = TICKET_CATEGORIES.find(c => c.value === ticket.category);
   return (
     <Dialog>
-      <DialogTrigger>
-        <button className="text-left w-full hover:text-primary transition-colors truncate max-w-[140px] text-xs">
-          {ticket.vendorName || ticket.concept || ticket.description || '—'}
-        </button>
+      <DialogTrigger className="text-left w-full hover:text-primary transition-colors truncate max-w-[140px] text-xs text-slate-700 bg-transparent border-none p-0 cursor-pointer">
+        {ticket.vendorName || ticket.concept || ticket.description || '—'}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
@@ -217,8 +215,8 @@ export function UserDashboard() {
                           <div className="flex gap-1">
                             {[trip.startPhotoUrl, trip.endPhotoUrl, trip.photoUrl].filter(Boolean).map((url, i) => (
                               <Dialog key={i}>
-                                <DialogTrigger>
-                                  <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-80"><img src={url!} alt="km" className="w-full h-full object-cover" /></div>
+                                <DialogTrigger className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 p-0 transition-opacity">
+                                  <img src={url!} alt="km" className="w-full h-full object-cover" />
                                 </DialogTrigger>
                                 <DialogContent className="sm:max-w-[600px]"><img src={url!} alt="Odómetro" className="w-full h-auto rounded-xl" /></DialogContent>
                               </Dialog>

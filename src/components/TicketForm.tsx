@@ -153,10 +153,8 @@ export function TicketForm() {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-      <DialogTrigger>
-        <Button variant="outline" className="gap-2 border-slate-200 hover:bg-slate-50 transition-all">
-          <Receipt className="w-4 h-4" /> Nuevo Ticket
-        </Button>
+      <DialogTrigger render={<Button variant="outline" className="gap-2 border-slate-200 hover:bg-slate-50 transition-all" />}>
+        <Receipt className="w-4 h-4" /> Nuevo Ticket
       </DialogTrigger>
       <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
