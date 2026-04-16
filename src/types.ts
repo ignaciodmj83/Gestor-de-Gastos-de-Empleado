@@ -41,8 +41,11 @@ export interface OrgSettings {
   companyAddress?: string;
   companyCIF?: string;
   companyEmail?: string;
-  // Operational defaults
-  defaultSendEmail?: string;    // email where processed tickets are sent
+  // Email routing for automatic sends
+  emailTicketsSmall?: string;   // tickets < maxAutoApproveAmount
+  emailTicketsLarge?: string;   // tickets >= maxAutoApproveAmount
+  emailTrips?: string;          // trips
+  defaultSendEmail?: string;    // fallback (backwards compat)
   maxAutoApproveAmount?: number; // tickets below this are auto-approved (default 50)
   currency: string;             // default 'EUR'
 }
@@ -54,6 +57,9 @@ export const DEFAULT_SETTINGS: OrgSettings = {
   companyAddress: '',
   companyCIF: '',
   companyEmail: '',
+  emailTicketsSmall: '',
+  emailTicketsLarge: '',
+  emailTrips: '',
   defaultSendEmail: '',
   maxAutoApproveAmount: 50,
   currency: 'EUR',
