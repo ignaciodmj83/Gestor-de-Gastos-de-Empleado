@@ -6,15 +6,17 @@ import { Trip, Ticket, TICKET_CATEGORIES, OrgSettings, DEFAULT_SETTINGS } from '
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { TripForm } from './TripForm';
 import { TicketForm } from './TicketForm';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toast } from 'sonner';
 import {
   Car, Receipt, Clock, CheckCircle2, XCircle, TrendingUp,
-  History, ImageOff, Building2, MapPin, Hash, Euro, FileText
+  History, ImageOff, Building2, MapPin, Hash, Euro, FileText, Send, Eye
 } from 'lucide-react';
 
 // ── Ticket detail modal ───────────────────────────────────────────────────────
@@ -22,8 +24,10 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
   const cat = TICKET_CATEGORIES.find(c => c.value === ticket.category);
   return (
     <Dialog>
-      <DialogTrigger className="text-left w-full hover:text-primary transition-colors truncate max-w-[140px] text-xs text-slate-700 bg-transparent border-none p-0 cursor-pointer">
-        {ticket.vendorName || ticket.concept || ticket.description || '—'}
+      <DialogTrigger render={
+        <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:bg-slate-100 border-slate-200" title="Ver detalle" />
+      }>
+        <Eye className="h-3.5 w-3.5" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
@@ -89,7 +93,6 @@ export function UserDashboard() {
   useEffect(() => {
     if (!profile) return;
 
-    // Load org settings for km cost display
     getDoc(doc(db, 'settings', profile.organizationId)).then(snap => {
       if (snap.exists()) setOrgSettings({ ...DEFAULT_SETTINGS, ...snap.data() as OrgSettings });
     }).catch(() => {});
@@ -107,6 +110,71 @@ export function UserDashboard() {
     return () => { unsubTrips(); unsubTickets(); };
   }, [profile]);
 
+  const doSendEmail = async (to: string, subject: string, body: string) => {
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, body }),
+      });
+      if (res.ok) { toast.success(`Email enviado a ${to}`); return; }
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 503) {
+        window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+        toast.info(`Abre tu cliente de email para enviar a ${to}`);
+      } else {
+        toast.error(err.error ?? 'Error al enviar email.');
+      }
+    } catch {
+      window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+      toast.info(`Abre tu cliente de email para enviar a ${to}`);
+    }
+  };
+
+  const sendTrip = (trip: Trip) => {
+    const email = orgSettings.emailTrips || orgSettings.defaultSendEmail || '';
+    if (!email) { toast.warning('El administrador no ha configurado un email para viajes.'); return; }
+    const dateStr = format(trip.date.toDate(), 'dd/MM/yyyy');
+    const amount  = (trip.totalAmount ?? trip.km * orgSettings.kmCost).toFixed(2);
+    const subject = `Viaje - ${profile?.name} - ${dateStr} - ${trip.km} km`;
+    const body    = [
+      `Empleado: ${profile?.name}`,
+      `Fecha: ${dateStr}`,
+      `Kilómetros: ${trip.km} km`,
+      trip.startKm != null ? `KM inicio: ${trip.startKm}` : null,
+      trip.endKm   != null ? `KM fin: ${trip.endKm}`      : null,
+      `Importe: ${amount} €`,
+      `Coste/km: ${trip.kmCost ?? orgSettings.kmCost} €/km`,
+      trip.description ? `Descripción: ${trip.description}` : null,
+      `Estado: ${trip.status}`,
+    ].filter(Boolean).join('\n');
+    doSendEmail(email, subject, body);
+  };
+
+  const sendTicket = (ticket: Ticket) => {
+    const threshold = orgSettings.maxAutoApproveAmount ?? DEFAULT_SETTINGS.maxAutoApproveAmount!;
+    const email = (ticket.amount < threshold
+      ? orgSettings.emailTicketsSmall
+      : orgSettings.emailTicketsLarge) || orgSettings.defaultSendEmail || '';
+    if (!email) { toast.warning('El administrador no ha configurado un email para tickets.'); return; }
+    const dateStr = format(ticket.date.toDate(), 'dd/MM/yyyy');
+    const subject = `Ticket - ${profile?.name} - ${dateStr} - ${ticket.amount.toFixed(2)} €`;
+    const body    = [
+      `Empleado: ${profile?.name}`,
+      `Fecha: ${dateStr}`,
+      ticket.vendorName    ? `Proveedor: ${ticket.vendorName}`    : null,
+      ticket.vendorCIF     ? `CIF/NIF: ${ticket.vendorCIF}`       : null,
+      ticket.vendorAddress ? `Dirección: ${ticket.vendorAddress}` : null,
+      ticket.invoiceNumber ? `Nº Factura: ${ticket.invoiceNumber}`: null,
+      ticket.concept       ? `Concepto: ${ticket.concept}`        : null,
+      ticket.baseAmount    != null ? `Base imponible: ${ticket.baseAmount.toFixed(2)} €` : null,
+      ticket.vatPercent    != null ? `IVA: ${ticket.vatPercent}%` : null,
+      `Total: ${ticket.amount.toFixed(2)} €`,
+      `Estado: ${ticket.status}`,
+    ].filter(Boolean).join('\n');
+    doSendEmail(email, subject, body);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved': return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-2 py-0.5 rounded-full text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Aprobado</Badge>;
@@ -115,7 +183,6 @@ export function UserDashboard() {
     }
   };
 
-  // Current month stats
   const now = new Date();
   const thisMonth = (items: { date: any }[]) => items.filter(t => {
     const d = t.date.toDate(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -199,11 +266,12 @@ export function UserDashboard() {
                       <TableHead className="data-grid-header">Fotos</TableHead>
                       <TableHead className="data-grid-header">Descripción</TableHead>
                       <TableHead className="data-grid-header">Estado</TableHead>
+                      <TableHead className="data-grid-header text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {trips.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center py-12 text-slate-400">No hay viajes registrados</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center py-12 text-slate-400">No hay viajes registrados</TableCell></TableRow>
                     ) : trips.map(trip => (
                       <TableRow key={trip.id} className="hover:bg-slate-50/50 transition-colors">
                         <TableCell className="data-grid-cell">{format(trip.date.toDate(), 'dd MMM yyyy', { locale: es })}</TableCell>
@@ -226,6 +294,15 @@ export function UserDashboard() {
                         </TableCell>
                         <TableCell className="data-grid-cell text-xs text-slate-500 max-w-[140px] truncate">{trip.description || '—'}</TableCell>
                         <TableCell className="data-grid-cell">{getStatusBadge(trip.status)}</TableCell>
+                        <TableCell className="data-grid-cell">
+                          <div className="flex justify-end gap-1">
+                            <Button size="sm" variant="outline"
+                              className="h-8 w-8 p-0 rounded-xl text-blue-500 hover:bg-blue-50 border-blue-100"
+                              onClick={() => sendTrip(trip)} title="Enviar por email">
+                              <Send className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -247,11 +324,12 @@ export function UserDashboard() {
                       <TableHead className="data-grid-header">IVA</TableHead>
                       <TableHead className="data-grid-header">Proveedor / Concepto</TableHead>
                       <TableHead className="data-grid-header">Estado</TableHead>
+                      <TableHead className="data-grid-header text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {tickets.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center py-12 text-slate-400">No hay tickets registrados</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center py-12 text-slate-400">No hay tickets registrados</TableCell></TableRow>
                     ) : tickets.map(ticket => {
                       const cat = TICKET_CATEGORIES.find(c => c.value === ticket.category);
                       return (
@@ -262,10 +340,20 @@ export function UserDashboard() {
                           <TableCell className="data-grid-cell font-mono text-xs text-slate-500">
                             {ticket.vatPercent != null ? `${ticket.vatPercent}%` : '—'}
                           </TableCell>
-                          <TableCell className="data-grid-cell">
-                            <TicketDetail ticket={ticket} />
+                          <TableCell className="data-grid-cell text-xs text-slate-600 max-w-[140px] truncate">
+                            {ticket.vendorName || ticket.concept || ticket.description || '—'}
                           </TableCell>
                           <TableCell className="data-grid-cell">{getStatusBadge(ticket.status)}</TableCell>
+                          <TableCell className="data-grid-cell">
+                            <div className="flex justify-end gap-1">
+                              <TicketDetail ticket={ticket} />
+                              <Button size="sm" variant="outline"
+                                className="h-8 w-8 p-0 rounded-xl text-blue-500 hover:bg-blue-50 border-blue-100"
+                                onClick={() => sendTicket(ticket)} title="Enviar por email">
+                                <Send className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
