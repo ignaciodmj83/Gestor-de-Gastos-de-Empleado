@@ -310,7 +310,8 @@ export function AdminDashboard() {
     const threshold = orgSettings.maxAutoApproveAmount ?? DEFAULT_SETTINGS.maxAutoApproveAmount!;
     try {
       if (ticket.amount < threshold) {
-        const dest = orgSettings.defaultSendEmail ? ` → ${orgSettings.defaultSendEmail}` : '';
+        const email = orgSettings.emailTicketsSmall || orgSettings.defaultSendEmail || '';
+        const dest = email ? ` → ${email}` : '';
         toast.info(`Enviando ticket de ${ticket.amount.toFixed(2)} €${dest}…`, {
           description: `Proceso automático para importes < ${threshold} €`,
           icon: <Send className="w-4 h-4" />,
@@ -329,6 +330,53 @@ export function AdminDashboard() {
     } finally {
       setProcessing(null);
     }
+  };
+
+  // ── Email send helpers ────────────────────────────────────────────────────
+  const sendTripByEmail = (trip: Trip) => {
+    const email = orgSettings.emailTrips || orgSettings.defaultSendEmail || '';
+    if (!email) { toast.warning('No hay email configurado para viajes. Configúralo en Ajustes.'); return; }
+    const dateStr = format(trip.date.toDate(), 'dd/MM/yyyy');
+    const amount  = (trip.totalAmount ?? trip.km * orgSettings.kmCost).toFixed(2);
+    const subject = `Viaje - ${trip.userName} - ${dateStr} - ${trip.km} km`;
+    const body    = [
+      `Empleado: ${trip.userName}`,
+      `Fecha: ${dateStr}`,
+      `Kilómetros: ${trip.km} km`,
+      trip.startKm != null ? `KM inicio: ${trip.startKm}` : null,
+      trip.endKm   != null ? `KM fin: ${trip.endKm}`      : null,
+      `Importe: ${amount} €`,
+      `Coste/km: ${trip.kmCost ?? orgSettings.kmCost} €/km`,
+      trip.description ? `Descripción: ${trip.description}` : null,
+      `Estado: ${trip.status}`,
+    ].filter(Boolean).join('\n');
+    window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+    toast.success(`Abriendo email hacia ${email}`);
+  };
+
+  const sendTicketByEmail = (ticket: Ticket) => {
+    const threshold = orgSettings.maxAutoApproveAmount ?? DEFAULT_SETTINGS.maxAutoApproveAmount!;
+    const email = (ticket.amount < threshold
+      ? orgSettings.emailTicketsSmall
+      : orgSettings.emailTicketsLarge) || orgSettings.defaultSendEmail || '';
+    if (!email) { toast.warning('No hay email configurado para tickets. Configúralo en Ajustes.'); return; }
+    const dateStr = format(ticket.date.toDate(), 'dd/MM/yyyy');
+    const subject = `Ticket - ${ticket.userName} - ${dateStr} - ${ticket.amount.toFixed(2)} €`;
+    const body    = [
+      `Empleado: ${ticket.userName}`,
+      `Fecha: ${dateStr}`,
+      ticket.vendorName    ? `Proveedor: ${ticket.vendorName}`    : null,
+      ticket.vendorCIF     ? `CIF/NIF: ${ticket.vendorCIF}`       : null,
+      ticket.vendorAddress ? `Dirección: ${ticket.vendorAddress}` : null,
+      ticket.invoiceNumber ? `Nº Factura: ${ticket.invoiceNumber}`: null,
+      ticket.concept       ? `Concepto: ${ticket.concept}`        : null,
+      ticket.baseAmount    != null ? `Base imponible: ${ticket.baseAmount.toFixed(2)} €` : null,
+      ticket.vatPercent    != null ? `IVA: ${ticket.vatPercent}%` : null,
+      `Total: ${ticket.amount.toFixed(2)} €`,
+      `Estado: ${ticket.status}`,
+    ].filter(Boolean).join('\n');
+    window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+    toast.success(`Abriendo email hacia ${email}`);
   };
 
   // ── Filters ───────────────────────────────────────────────────────────────
@@ -353,15 +401,22 @@ export function AdminDashboard() {
     return map[status] ?? <Badge className="bg-amber-100 text-amber-700 border-none px-2 py-0.5 rounded-full text-xs">Pendiente</Badge>;
   };
 
-  const chartData = users.map(u => ({
-    name: u.name.split(' ')[0],
-    km:      trips.filter(t => t.userId === u.uid && t.status === 'approved').reduce((a, t) => a + t.km, 0),
-    gastos:  tickets.filter(t => t.userId === u.uid && t.status === 'approved').reduce((a, t) => a + t.amount, 0),
-    importe: trips.filter(t => t.userId === u.uid && t.status === 'approved').reduce((a, t) => a + (t.totalAmount ?? t.km * orgSettings.kmCost), 0),
-  }));
+  const chartData = filterUser === 'all'
+    ? users.map(u => ({
+        name:    u.name.split(' ')[0],
+        km:      filtered.trips.filter(t => t.userId === u.uid && t.status === 'approved').reduce((a, t) => a + t.km, 0),
+        gastos:  filtered.tickets.filter(t => t.userId === u.uid && t.status === 'approved').reduce((a, t) => a + t.amount, 0),
+        importe: filtered.trips.filter(t => t.userId === u.uid && t.status === 'approved').reduce((a, t) => a + (t.totalAmount ?? t.km * orgSettings.kmCost), 0),
+      }))
+    : [{
+        name:    users.find(u => u.uid === filterUser)?.name.split(' ')[0] ?? 'Empleado',
+        km:      filtered.trips.filter(t => t.status === 'approved').reduce((a, t) => a + t.km, 0),
+        gastos:  filtered.tickets.filter(t => t.status === 'approved').reduce((a, t) => a + t.amount, 0),
+        importe: filtered.trips.filter(t => t.status === 'approved').reduce((a, t) => a + (t.totalAmount ?? t.km * orgSettings.kmCost), 0),
+      }];
 
   const monthOptions = getMonthOptions();
-  const totalKmAmount = trips.filter(t => t.status === 'approved').reduce((a, t) => a + (t.totalAmount ?? t.km * orgSettings.kmCost), 0);
+  const totalKmAmount = filtered.trips.filter(t => t.status === 'approved').reduce((a, t) => a + (t.totalAmount ?? t.km * orgSettings.kmCost), 0);
 
   // ── CSV exports ───────────────────────────────────────────────────────────
   const exportTripsCSV = () => exportToCSV(
@@ -434,10 +489,10 @@ export function AdminDashboard() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Empleados',        value: users.length, icon: Users,   color: 'text-blue-600',    bg: 'bg-blue-50' },
-          { label: 'KM aprobados',     value: `${trips.filter(t => t.status==='approved').reduce((a,t)=>a+t.km,0).toFixed(0)} km`, icon: Car, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: 'Empleados',        value: filterUser === 'all' ? users.length : 1, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'KM aprobados',     value: `${filtered.trips.filter(t => t.status==='approved').reduce((a,t)=>a+t.km,0).toFixed(0)} km`, icon: Car, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Importe viajes',   value: `${totalKmAmount.toFixed(2)} €`, icon: Euro,    color: 'text-violet-600',  bg: 'bg-violet-50' },
-          { label: 'Gastos aprobados', value: `${tickets.filter(t => t.status==='approved').reduce((a,t)=>a+t.amount,0).toFixed(2)} €`, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Gastos aprobados', value: `${filtered.tickets.filter(t => t.status==='approved').reduce((a,t)=>a+t.amount,0).toFixed(2)} €`, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map((stat, i) => (
           <Card key={i} className="border-none shadow-sm shadow-slate-200/50 overflow-hidden group">
             <CardContent className="p-5 relative">
@@ -486,10 +541,10 @@ export function AdminDashboard() {
           </CardHeader>
           <div className="space-y-2.5">
             {[
-              { label: 'Viajes pendientes',  count: trips.filter(t=>t.status==='pending').length,   color: 'bg-amber-400' },
-              { label: 'Tickets pendientes', count: tickets.filter(t=>t.status==='pending').length, color: 'bg-blue-400' },
-              { label: 'Total aprobados',    count: trips.filter(t=>t.status==='approved').length + tickets.filter(t=>t.status==='approved').length, color: 'bg-emerald-400' },
-              { label: 'Total rechazados',   count: trips.filter(t=>t.status==='rejected').length + tickets.filter(t=>t.status==='rejected').length, color: 'bg-rose-300' },
+              { label: 'Viajes pendientes',  count: filtered.trips.filter(t=>t.status==='pending').length,   color: 'bg-amber-400' },
+              { label: 'Tickets pendientes', count: filtered.tickets.filter(t=>t.status==='pending').length, color: 'bg-blue-400' },
+              { label: 'Total aprobados',    count: filtered.trips.filter(t=>t.status==='approved').length + filtered.tickets.filter(t=>t.status==='approved').length, color: 'bg-emerald-400' },
+              { label: 'Total rechazados',   count: filtered.trips.filter(t=>t.status==='rejected').length + filtered.tickets.filter(t=>t.status==='rejected').length, color: 'bg-rose-300' },
             ].map((item, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-2xl">
                 <div className="flex items-center gap-2.5">
@@ -572,6 +627,10 @@ export function AdminDashboard() {
                       <TableCell className="data-grid-cell">
                         <div className="flex justify-end gap-1">
                           <TripDetailModal trip={trip} />
+                          <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-xl text-blue-500 hover:bg-blue-50 border-blue-100"
+                            onClick={() => sendTripByEmail(trip)} title="Enviar por email">
+                            <Send className="h-3.5 w-3.5" />
+                          </Button>
                           {trip.status === 'pending' && (
                             <>
                               <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-xl text-emerald-600 hover:bg-emerald-50 border-emerald-100"
@@ -635,6 +694,10 @@ export function AdminDashboard() {
                         <TableCell className="data-grid-cell">
                           <div className="flex justify-end gap-1">
                             <TicketDetailModal ticket={ticket} />
+                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-xl text-blue-500 hover:bg-blue-50 border-blue-100"
+                              onClick={() => sendTicketByEmail(ticket)} title="Enviar por email">
+                              <Send className="h-3.5 w-3.5" />
+                            </Button>
                             {ticket.status === 'pending' ? (
                               <>
                                 <Button size="sm" className="gap-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs px-2.5 h-8"

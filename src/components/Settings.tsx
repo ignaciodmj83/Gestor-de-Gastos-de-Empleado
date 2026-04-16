@@ -184,12 +184,30 @@ export function Settings() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5 col-span-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Mail className="w-3 h-3" /> Email de envío por defecto
+                <Mail className="w-3 h-3" /> Email — Tickets pequeños (menor del umbral)
               </Label>
-              <Input type="email" value={settings.defaultSendEmail || ''} onChange={e => set('defaultSendEmail', e.target.value)}
+              <Input type="email" value={settings.emailTicketsSmall || ''} onChange={e => set('emailTicketsSmall', e.target.value)}
+                placeholder="recuperacion-iva@empresa.com"
+                className="bg-slate-50 border-none focus-visible:ring-primary" />
+              <p className="text-xs text-slate-400">Destino para tickets con importe inferior al umbral de aprobación automática.</p>
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email — Tickets grandes (igual o mayor al umbral)
+              </Label>
+              <Input type="email" value={settings.emailTicketsLarge || ''} onChange={e => set('emailTicketsLarge', e.target.value)}
                 placeholder="contabilidad@empresa.com"
                 className="bg-slate-50 border-none focus-visible:ring-primary" />
-              <p className="text-xs text-slate-400">Dirección a la que se envían los tickets procesados.</p>
+              <p className="text-xs text-slate-400">Destino para tickets que requieren revisión manual (importe elevado).</p>
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email — Viajes / Kilometraje
+              </Label>
+              <Input type="email" value={settings.emailTrips || ''} onChange={e => set('emailTrips', e.target.value)}
+                placeholder="kilometraje@empresa.com"
+                className="bg-slate-50 border-none focus-visible:ring-primary" />
+              <p className="text-xs text-slate-400">Destino para el envío de registros de viajes y kilometraje.</p>
             </div>
             <div className="space-y-1.5 col-span-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
