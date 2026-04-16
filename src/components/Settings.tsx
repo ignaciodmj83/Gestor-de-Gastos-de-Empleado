@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, writeBatch, collection, query, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '@/src/lib/firebase';
 import { useAuth } from './AuthProvider';
 import { OrgSettings, DEFAULT_SETTINGS } from '@/src/types';
@@ -7,18 +7,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   Loader2, Save, Building2, Mail, MapPin, Hash, Euro,
-  Car, Wrench, AlertCircle, CheckCircle2, Copy
+  Car, Wrench, AlertCircle, CheckCircle2, Copy, Trash2
 } from 'lucide-react';
 
 export function Settings() {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const [settings, setSettings] = useState<OrgSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!profile?.organizationId) return;
@@ -62,6 +72,43 @@ export function Settings() {
     if (profile?.organizationId) {
       navigator.clipboard.writeText(profile.organizationId);
       toast.success('ID de organización copiado');
+    }
+  };
+
+  const deleteOrganization = async () => {
+    if (!profile?.organizationId) return;
+    setDeleting(true);
+    try {
+      const orgId = profile.organizationId;
+      const batch = writeBatch(db);
+
+      // Delete org document and settings document
+      batch.delete(doc(db, 'organizations', orgId));
+      batch.delete(doc(db, 'settings', orgId));
+
+      // Clear organizationId and role from all org users
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('organizationId', '==', orgId)));
+      usersSnap.forEach(userDoc => {
+        batch.update(userDoc.ref, {
+          organizationId: '',
+          organizationName: '',
+          role: 'user',
+        });
+      });
+
+      // Delete all trips and tickets for the org
+      const tripsSnap = await getDocs(query(collection(db, 'trips'), where('organizationId', '==', orgId)));
+      tripsSnap.forEach(d => batch.delete(d.ref));
+
+      const ticketsSnap = await getDocs(query(collection(db, 'tickets'), where('organizationId', '==', orgId)));
+      ticketsSnap.forEach(d => batch.delete(d.ref));
+
+      await batch.commit();
+      toast.success('Organización eliminada');
+      await logout();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, 'organization');
+      setDeleting(false);
     }
   };
 
@@ -248,6 +295,69 @@ export function Settings() {
         </Button>
         {saved && <span className="text-sm text-emerald-600 font-medium">✓ Cambios guardados</span>}
       </div>
+
+      {/* Danger zone */}
+      <Card className="border border-red-200 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-bold flex items-center gap-2 text-red-600">
+            <Trash2 className="w-4 h-4" /> Zona peligrosa
+          </CardTitle>
+          <CardDescription>Acciones irreversibles. Procede con precaución.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start justify-between gap-4 p-4 bg-red-50 rounded-xl border border-red-100">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Eliminar organización</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Elimina permanentemente la organización, toda su configuración y todos los datos de gastos y viajes. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <Dialog>
+              <DialogTrigger render={
+                <Button variant="outline" className="shrink-0 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 gap-2" />
+              }>
+                <Trash2 className="w-4 h-4" /> Eliminar
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-red-600">
+                    <Trash2 className="w-5 h-5" /> Confirmar eliminación
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="flex items-start gap-2.5 p-3 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      Esta acción es <strong>permanente e irreversible</strong>. Se eliminarán:
+                      <ul className="mt-1.5 list-disc pl-4 space-y-0.5">
+                        <li>La organización y su configuración</li>
+                        <li>Todos los tickets y viajes registrados</li>
+                        <li>La vinculación de todos los empleados</li>
+                      </ul>
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600">¿Estás seguro de que quieres eliminar la organización <strong>{settings.companyName || profile?.organizationId}</strong>?</p>
+                </div>
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline" />}>
+                    Cancelar
+                  </DialogClose>
+                  <Button
+                    onClick={deleteOrganization}
+                    disabled={deleting}
+                    className="gap-2 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {deleting
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Eliminando...</>
+                      : <><Trash2 className="w-4 h-4" /> Sí, eliminar</>
+                    }
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

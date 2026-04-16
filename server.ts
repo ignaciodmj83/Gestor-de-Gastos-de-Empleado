@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { GoogleGenAI, createUserContent, createPartFromBase64, Type } from '@google/genai';
+import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -141,6 +142,41 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional.`,
   } catch (err: any) {
     console.error('[scan-ticket]', err?.message);
     res.status(500).json({ error: err?.message ?? 'Error interno del servidor.' });
+  }
+});
+
+// ── POST /api/send-email ──────────────────────────────────────────────────────
+app.post('/api/send-email', async (req, res) => {
+  const { to, subject, body } = req.body as { to?: string; subject?: string; body?: string };
+  if (!to || !subject || !body) {
+    res.status(400).json({ error: 'Faltan campos requeridos (to, subject, body).' });
+    return;
+  }
+
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  if (!smtpUser || !smtpPass) {
+    res.status(503).json({ error: 'Servidor de email no configurado. Define SMTP_USER y SMTP_PASS.' });
+    return;
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_PORT === '465',
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || smtpUser,
+      to,
+      subject,
+      text: body,
+    });
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error('[send-email]', err?.message);
+    res.status(500).json({ error: err?.message ?? 'Error al enviar email.' });
   }
 });
 

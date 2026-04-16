@@ -333,6 +333,32 @@ export function AdminDashboard() {
   };
 
   // ── Email send helpers ────────────────────────────────────────────────────
+  const doSendEmail = async (to: string, subject: string, body: string) => {
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, body }),
+      });
+      if (res.ok) {
+        toast.success(`Email enviado a ${to}`);
+        return;
+      }
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 503) {
+        // SMTP not configured — fall back to mailto
+        window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+        toast.info(`Abre tu cliente de email para enviar a ${to}`);
+      } else {
+        toast.error(err.error ?? 'Error al enviar email.');
+      }
+    } catch {
+      // Network/server unavailable — fall back to mailto
+      window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+      toast.info(`Abre tu cliente de email para enviar a ${to}`);
+    }
+  };
+
   const sendTripByEmail = (trip: Trip) => {
     const email = orgSettings.emailTrips || orgSettings.defaultSendEmail || '';
     if (!email) { toast.warning('No hay email configurado para viajes. Configúralo en Ajustes.'); return; }
@@ -350,8 +376,7 @@ export function AdminDashboard() {
       trip.description ? `Descripción: ${trip.description}` : null,
       `Estado: ${trip.status}`,
     ].filter(Boolean).join('\n');
-    window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-    toast.success(`Abriendo email hacia ${email}`);
+    doSendEmail(email, subject, body);
   };
 
   const sendTicketByEmail = (ticket: Ticket) => {
@@ -375,8 +400,7 @@ export function AdminDashboard() {
       `Total: ${ticket.amount.toFixed(2)} €`,
       `Estado: ${ticket.status}`,
     ].filter(Boolean).join('\n');
-    window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-    toast.success(`Abriendo email hacia ${email}`);
+    doSendEmail(email, subject, body);
   };
 
   // ── Filters ───────────────────────────────────────────────────────────────
